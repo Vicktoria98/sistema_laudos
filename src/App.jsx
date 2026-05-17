@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 
 const TESTES_DB = {
   AOL: { nome:"AOL – Atenção Online (A/C/D)", area:"Atenção", publico:["infantil","adolescente","adulto"], plataforma:"Vetor VOL", online:true, sessoes:0.5, qualitativo:false, descricao:"1ª bateria online de atenção aprovada pelo CFP. Avalia atenção alternada, concentrada e dividida com registro de tempo e precisão.", indices:["Atenção Alternada – Acertos","Atenção Concentrada – Acertos","Atenção Dividida – Acertos","Erros totais","Omissões"], normas:{ranges:[{max:24,label:"Muito Abaixo",cor:"#922b21"},{max:39,label:"Abaixo",cor:"#935116"},{max:59,label:"Médio",cor:"#1e6641"},{max:74,label:"Acima",cor:"#1a4f7a"},{max:999,label:"Muito Acima",cor:"#4a235a"}]}},
@@ -184,7 +184,10 @@ const S = {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [aba, setAba] = useState(0);
-  const abas = ["Paciente & Demanda", "Bateria & Sessões", "Resultados", "Laudo Final"];
+  const abas = ["Paciente & Demanda", "Bateria & Sessões", "Resultados", "Laudo Final", "Documentos"];
+
+  // Logo em base64 — MV Maria Vicktória
+  const LOGO_URL = "/mnt/user-data/uploads/LOGO_ANTIGA__2_.png";
 
   const [pac, setPac] = useState({ nome:"", dataNasc:"", sexo:"", escolaridade:"", contatoResp:"" });
   const [dem, setDem] = useState({ pedidoMedico:"", hipoteseMedica:"", queixaPrincipal:"", plano:"INMET", maxSessoes:8 });
@@ -200,6 +203,11 @@ export default function App() {
   const [laudo, setLaudo] = useState("");
   const [loadingL, setLoadingL] = useState(false);
   const [filtroArea, setFiltroArea] = useState("Todas");
+
+  // Documentos
+  const [docAtivo, setDocAtivo] = useState("escola");
+  const [docTexto, setDocTexto] = useState({});
+  const [loadingDoc, setLoadingDoc] = useState(false);
 
   const idade = calcularIdade(pac.dataNasc);
   const publico = publicoPaciente(pac.dataNasc);
@@ -326,11 +334,11 @@ Tom: técnico, clínico, fundamentado. Nunca genérico. O laudo deve ser defens�
         <div style={S.row2}>
           <div>
             <label style={S.label}>Nome completo</label>
-            <input style={S.input} value={pac.nome} onChange={e => setPac(p => ({...p, nome:e.target.value}))} placeholder="Nome do paciente" />
+            <input style={S.input} defaultValue={pac.nome} onBlur={e => setPac(p => ({...p, nome:e.target.value}))} placeholder="Nome do paciente" />
           </div>
           <div>
             <label style={S.label}>Data de nascimento{idade !== "" && <span style={{color:"#1a1a1a",fontWeight:"bold"}}> — {idade} anos</span>}</label>
-            <input style={S.input} type="date" value={pac.dataNasc} onChange={e => setPac(p => ({...p, dataNasc:e.target.value}))} />
+            <input style={S.input} type="date" defaultValue={pac.dataNasc} onChange={e => setPac(p => ({...p, dataNasc:e.target.value}))} />
           </div>
         </div>
         <div style={S.row3}>
@@ -359,11 +367,11 @@ Tom: técnico, clínico, fundamentado. Nunca genérico. O laudo deve ser defens�
         <div style={S.row2}>
           <div>
             <label style={S.label}>Máx. sessões pelo plano</label>
-            <input style={S.input} type="number" min={3} max={20} value={dem.maxSessoes} onChange={e => setDem(d => ({...d, maxSessoes:e.target.value}))} />
+            <input style={S.input} type="number" min={3} max={20} defaultValue={dem.maxSessoes} onBlur={e => setDem(d => ({...d, maxSessoes:e.target.value}))} />
           </div>
           <div>
             <label style={S.label}>Contato / responsável</label>
-            <input style={S.input} value={pac.contatoResp} onChange={e => setPac(p => ({...p, contatoResp:e.target.value}))} placeholder="Nome e telefone" />
+            <input style={S.input} defaultValue={pac.contatoResp} onBlur={e => setPac(p => ({...p, contatoResp:e.target.value}))} placeholder="Nome e telefone" />
           </div>
         </div>
       </div>
@@ -372,15 +380,15 @@ Tom: técnico, clínico, fundamentado. Nunca genérico. O laudo deve ser defens�
         <div style={S.secTitle}>Demanda e encaminhamento</div>
         <div style={{marginBottom:14}}>
           <label style={S.label}>Pedido médico — transcreva o que está no documento</label>
-          <textarea style={{...S.textarea, minHeight:64}} value={dem.pedidoMedico} onChange={e => setDem(d => ({...d, pedidoMedico:e.target.value}))} placeholder="Ex: Solicito avaliação neuropsicológica para investigação de TDAH. Paciente apresenta dificuldade de atenção e hiperatividade desde os 6 anos." />
+          <textarea style={{...S.textarea, minHeight:64}} defaultValue={dem.pedidoMedico} onBlur={e => setDem(d => ({...d, pedidoMedico:e.target.value}))} placeholder="Ex: Solicito avaliação neuropsicológica para investigação de TDAH. Paciente apresenta dificuldade de atenção e hiperatividade desde os 6 anos." />
         </div>
         <div style={{marginBottom:14}}>
           <label style={S.label}>Hipótese médica / CID suspeito</label>
-          <input style={S.input} value={dem.hipoteseMedica} onChange={e => setDem(d => ({...d, hipoteseMedica:e.target.value}))} placeholder="Ex: F90.0 – TDAH, F84.0 – TEA, F32.1 – Depressão moderada" />
+          <input style={S.input} defaultValue={dem.hipoteseMedica} onBlur={e => setDem(d => ({...d, hipoteseMedica:e.target.value}))} placeholder="Ex: F90.0 – TDAH, F84.0 – TEA, F32.1 – Depressão moderada" />
         </div>
         <div>
           <label style={S.label}>Queixa principal — fala do paciente ou responsável</label>
-          <textarea style={{...S.textarea, minHeight:64}} value={dem.queixaPrincipal} onChange={e => setDem(d => ({...d, queixaPrincipal:e.target.value}))} placeholder="O que trazem como queixa com as próprias palavras deles..." />
+          <textarea style={{...S.textarea, minHeight:64}} defaultValue={dem.queixaPrincipal} onBlur={e => setDem(d => ({...d, queixaPrincipal:e.target.value}))} placeholder="O que trazem como queixa com as próprias palavras deles..." />
         </div>
       </div>
 
@@ -399,7 +407,7 @@ Tom: técnico, clínico, fundamentado. Nunca genérico. O laudo deve ser defens�
           <div style={{marginTop:18}}>
             <div style={S.subTitle}>Anotações da sessão de anamnese</div>
             <textarea style={{...S.textarea, minHeight:110, background:"#fafaf8"}}
-              value={anotacoes} onChange={e => setAnotacoes(e.target.value)}
+              defaultValue={anotacoes} onBlur={e => setAnotacoes(e.target.value)}
               placeholder="Registre os dados relevantes coletados — histórico desenvolvimental, eventos marcantes, observações comportamentais durante a entrevista, contexto familiar..." />
           </div>
         )}
@@ -603,6 +611,128 @@ Tom: técnico, clínico, fundamentado. Nunca genérico. O laudo deve ser defens�
     </div>
   );
 
+  async function gerarDoc(tipo) {
+    setLoadingDoc(true);
+    const prompts = {
+      escola: `Você é psicóloga neuropsicóloga. Redija um documento formal de recomendações para a escola com base nos dados abaixo. O documento deve ser profissional, empático com a escola e orientador — não punitivo. Inclua: introdução identificando o paciente e o objetivo, recomendações pedagógicas específicas baseadas nos achados, sugestões de adaptações de avaliação e ambiente, e encerramento solicitando colaboração. Tom: técnico mas acessível para educadores.
+
+Paciente: ${pac.nome}, ${idade} anos, ${pac.sexo}, escolaridade: ${pac.escolaridade}
+Hipótese: ${dem.hipoteseMedica}
+Queixa: ${dem.queixaPrincipal}
+Síntese do laudo: ${laudo.slice(0,600)}`,
+
+      wpp_documentos: `Você é psicóloga neuropsicóloga. Redija uma mensagem de WhatsApp profissional, calorosa e clara para a família do paciente solicitando documentos necessários para a avaliação. A mensagem deve: ser acolhedora e explicar brevemente o motivo de cada documento, listar os documentos necessários de forma clara, indicar prazo sugerido e disponibilidade para dúvidas. Tom: próximo, cuidadoso, profissional — sem ser fria nem informal demais.
+
+Paciente: ${pac.nome}, ${idade} anos
+Responsável: ${pac.contatoResp||"responsável"}
+Hipótese: ${dem.hipoteseMedica}
+
+Documentos geralmente necessários: relatório escolar, relatório médico/psiquiátrico se houver, exames anteriores, histórico de tratamentos.`,
+
+      wpp_relatorio_prof: `Você é psicóloga neuropsicóloga. Redija uma mensagem de WhatsApp para a família solicitando que entrem em contato com o profissional de saúde que acompanha o paciente (médico, fonoaudiólogo, terapeuta etc.) para pedir um breve relato clínico das observações dele sobre o paciente. A mensagem deve: ser acolhedora, explicar que isso vai enriquecer o laudo e beneficiar o paciente, ser direta sobre o que pedir ao profissional, e passar segurança e organização. Tom: próximo, cuidadoso e profissional.
+
+Paciente: ${pac.nome}, ${idade} anos
+Responsável: ${pac.contatoResp||"responsável"}
+Profissional a ser contatado: médico / especialista que acompanha`,
+
+      declaracao: `Você é psicóloga neuropsicóloga. Redija uma declaração de comparecimento formal e elegante atestando que o paciente esteve presente em sessão de avaliação psicológica. Inclua: identificação do paciente, data e horário (deixar em branco para preencher), finalidade (avaliação neuropsicológica), dados da psicóloga. Tom: formal, objetivo, uma página.
+
+Paciente: ${pac.nome}, ${idade} anos
+Responsável: ${pac.contatoResp||""}
+Psicóloga: Maria Vicktória de Souza — CRP 02/28.384
+Local: Avenida Souza Filho, 911 · Centro · Petrolina – PE`,
+
+      devolutiva: `Você é psicóloga neuropsicóloga. Elabore um roteiro estruturado para a sessão de devolutiva com a família do paciente. Inclua: como abrir a sessão acolhendo a família, como apresentar os resultados de forma acessível (sem jargão), como apresentar a hipótese diagnóstica com sensibilidade, como apresentar as recomendações, como responder perguntas difíceis, e como encerrar a sessão fortalecendo o vínculo. Tom: clínico e humano.
+
+Paciente: ${pac.nome}, ${idade} anos
+Hipótese: ${dem.hipoteseMedica}
+Pontos principais do laudo: ${laudo.slice(0,400)}`,
+    };
+
+    try {
+      const txt = await callClaude([{ role:"user", content: prompts[tipo] }],
+        "Você é psicóloga clínica neuropsicóloga experiente. Responda em português brasileiro. Seja profissional, calorosa e precisa.");
+      setDocTexto(prev => ({...prev, [tipo]: txt}));
+    } catch { setDocTexto(prev => ({...prev, [tipo]: "Erro. Verifique sua conexão."})); }
+    setLoadingDoc(false);
+  }
+
+  const DOCS = [
+    { key:"escola", label:"Recomendações para a escola", icon:"🏫", desc:"Documento formal com adaptações pedagógicas baseadas nos achados da avaliação." },
+    { key:"wpp_documentos", label:"WhatsApp — Solicitar documentos", icon:"📋", desc:"Mensagem profissional e acolhedora solicitando documentos necessários à família." },
+    { key:"wpp_relatorio_prof", label:"WhatsApp — Solicitar relatório do profissional", icon:"👨‍⚕️", desc:"Mensagem para a família pedir relato clínico ao médico ou terapeuta que acompanha." },
+    { key:"declaracao", label:"Declaração de comparecimento", icon:"📄", desc:"Declaração formal para o paciente apresentar no trabalho ou escola." },
+    { key:"devolutiva", label:"Roteiro de devolutiva", icon:"🗣", desc:"Guia estruturado para conduzir a sessão de devolutiva com a família." },
+  ];
+
+  const cabecalhoDoc = (titulo) => `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MARIA VICKTÓRIA DE SOUZA
+Psicóloga · Especialista em Neuropsicologia · CRP 02/28.384
+Avenida Souza Filho, 911 · Centro · Petrolina – PE · 56.302-370
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${titulo}
+Petrolina – PE, ${new Date().toLocaleDateString("pt-BR", {day:"numeric",month:"long",year:"numeric"})}
+
+`;
+
+  const Aba4 = () => (
+    <div>
+      <div style={S.card}>
+        <div style={S.secTitle}>Documentos e comunicações</div>
+        <p style={{fontSize:13, color:"#666", marginBottom:18, lineHeight:1.8, fontFamily:F}}>
+          Gere documentos profissionais com a sua identidade visual e mensagens prontas para WhatsApp — tudo baseado nos dados do paciente já preenchidos.
+        </p>
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:24}}>
+          {DOCS.map(d => (
+            <div key={d.key} onClick={() => setDocAtivo(d.key)} style={{
+              padding:"12px 14px", border: docAtivo===d.key ? "1.5px solid #1a1a1a" : "1px solid #d5d5d5",
+              borderRadius:2, cursor:"pointer", background: docAtivo===d.key ? "#f9f9f7" : "#fff",
+            }}>
+              <div style={{fontSize:13, fontWeight:"bold", fontFamily:F, marginBottom:4}}>{d.icon} {d.label}</div>
+              <div style={{fontSize:11.5, color:"#777", fontFamily:F, lineHeight:1.5}}>{d.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {DOCS.filter(d => d.key === docAtivo).map(d => (
+          <div key={d.key}>
+            <div style={S.subTitle}>{d.icon} {d.label}</div>
+            <button style={S.btnSolid} onClick={() => gerarDoc(d.key)} disabled={loadingDoc}>
+              {loadingDoc ? "Gerando..." : `Gerar ${d.label.toLowerCase()}`}
+            </button>
+
+            {docTexto[d.key] && (
+              <div style={{marginTop:16}}>
+                {(d.key === "escola" || d.key === "declaracao") && (
+                  <div style={{...S.aiBox, borderLeft:"3px solid #1a1a1a", marginBottom:12, fontSize:12, color:"#555", fontFamily:F}}>
+                    <strong>Cabeçalho que será incluído no documento impresso:</strong>
+                    <pre style={{margin:"8px 0 0", fontFamily:F, fontSize:11, color:"#777", whiteSpace:"pre-wrap"}}>{cabecalhoDoc(d.label)}</pre>
+                  </div>
+                )}
+                <textarea style={{...S.textarea, minHeight:300, fontSize:13, lineHeight:1.9, background:"#fafaf8"}}
+                  value={docTexto[d.key]} onChange={e => setDocTexto(prev => ({...prev, [d.key]: e.target.value}))} />
+                <div style={{marginTop:10, display:"flex", gap:10, flexWrap:"wrap"}}>
+                  <button style={S.btnSolid} onClick={() => {
+                    const texto = d.key === "escola" || d.key === "declaracao"
+                      ? cabecalhoDoc(d.label) + docTexto[d.key]
+                      : docTexto[d.key];
+                    navigator.clipboard.writeText(texto);
+                    alert(d.key.startsWith("wpp") ? "Copiado! Cole direto no WhatsApp." : "Copiado! Cole no Word para imprimir.");
+                  }}>
+                    {d.key.startsWith("wpp") ? "Copiar para WhatsApp" : "Copiar para imprimir"}
+                  </button>
+                  <button style={S.btn} onClick={() => setDocTexto(prev => ({...prev, [d.key]: ""}))}>Regerar</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div style={S.app}>
       <div style={S.header}>
@@ -626,6 +756,7 @@ Tom: técnico, clínico, fundamentado. Nunca genérico. O laudo deve ser defens�
         {aba === 1 && <Aba1 />}
         {aba === 2 && <Aba2 />}
         {aba === 3 && <Aba3 />}
+        {aba === 4 && <Aba4 />}
       </main>
 
       <div style={{ borderTop:"1px solid #ddd", padding:"16px 48px", display:"flex", justifyContent:"space-between", background:"#fff" }}>
